@@ -1,0 +1,699 @@
+---
+title: "10 MT Analytic Challenge Ryan Welch"
+author: "Ryan Welch"
+date: "4/16/2022"
+output: html_document
+---
+
+# 10 Minute Analytic Challenge: Top Spotify Songs, their characteristics, and what we can try to predict
+
+## By Ryan Welch 
+
+---
+
+### The Data 
+
+Link: https://www.kaggle.com/leonardopena/top-spotify-songs-from-20102019-by-year
+
+The data extracted for this project was a public data set from the website Kaggle. The data consists of the top spotify songs by year from 2010-2019. The data includes the title of each song, the artist that created each song, and 13 other variables that describe different characteristics of the songs in the data set. The data for the characteristics was extracted from the following site, http://organizeyourmusic.playlistmachinery.com/, which was designed by spotify to help people organize their playlists with the ratings of different attributes discussed in this project that are derived using AI. Along with this I have added another attribute which is the End of the Year billboard ranking of every song that only had one artist and made it to the list. Below is a comprehensive list of all of the different attributes:
+
+x: index of the data
+title: title of the song
+Billboard EY Rank: End of the year billboard ranking for each song that had no features
+artist: Artist that created each song 
+top genre: the genre of the song that made the top songs list 
+year: year the song was in the top ranking 
+bpm: beats per minute of the song 
+nrgy: Energy ranking of the song 
+dnce: Danceability of the song, the higher the ranking the easier it is to dance to 
+db: How loud the song is in terms of decibles
+live: Liveness of the song, higher the ranking more likely the song is a live recording 
+val: valence, the higher the value, the more positive mood for the song
+dur: the duration of the song in seconds 
+acous: Acousticness, the higher the value the more acoustic the song
+spch: the higher the value the more spoken wods the song contains
+pop: the popularity of the song 
+
+After completing the 5 minute analytic challenge where I created multiple visualizations for the data, now I will be looking to use advanced machine learning techniques to be able to predict the genre of songs, predict the popularity of songs, and see how discuss how businesses can put these insights into action. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Loading Data
+First i will look to load the data from the CSV format to a data frame for analysis. 
+
+```{r}
+#Using read.csv I will make the CSV file in to a data frame. 
+
+S_top <- read.csv("SpotifyTopSongs.csv")
+```
+
+Then I will Extract a summary of the data in order to see which attributes have some interesting traits to look in to more. 
+
+```{r}
+#Using the summary function I can get a holistic picture of my data. 
+
+summary(S_top)
+```
+
+#### Insights 
+From the summary of the data I can see that the data contains 603 songs. The billboard end of year rank ranges from number 1 all the way to number 100. The year as expected ranges from 2010 to 2019. The rankings for the different characteristics for each song besides bpm, duration, and dB range from 0-100. The average song is a little over 2 minutes long and the average beats per minute of a song that made the top songs list is 118.5. These are all interesting insights and I will look to gain more insights below.
+
+---
+
+### Multilinear Regression with Popularity 
+
+The first predictive model that I will be using is multilinear regression. This model will attempt to predict the variability in the popularity rating of each song using the independent variables for: dance, decibel level, year song was made, beats per minute, energy of the song, how live the song songs, valor of the song or how happy it sounds, duration of the soung, amount of acoustics in the song, and how much speach is in the song. 
+
+```{r}
+library(car)
+
+#Creating the multilinear regression 
+lm.fit=lm(pop~dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch,data=S_top)
+summary(lm.fit)
+vif(lm.fit) 
+
+# The R function vif() can be used to detect multicollinearity in a regression model.
+max(vif(lm.fit))
+```
+
+
+From the multilinear regression we can see three variables that have been found to be statistically significant in determining the variability in the popularity rating of each song. The three variables are the decibel level of the song, the year the song was released, and the energy rating of the songs. The coefficients for decibel and year are both positive so this implies that based on the model as decibel level and year both increase the popularity of the song is predicted to increase. This shows that in this time frame songs that were louder had higher popularity ratings and songs of later years in that time frame also had higher popularity ratings. The energy level has a negative coefficient so as the energy rating of the song for this time period increases the popularity rating of the song is predicted to decrease. The rest of the variabes were not found to be statistically significant at a significance level of .05. 
+
+Using the VIF score I attempted to see if there was any multicolinearity between the variables as well and based off the accepted value of 4 to determine multicolinearity, all of the VIF values were below 4 so there is no need to remove variables. 
+
+
+Next I wish to analyze the interaction effect of two variables and see if it is significant. Both the decibile level of the songs and the energy rating of the songs were found to be statistically significant in predicting the variability in the popularity rating so now I will see how the interaction of these two variables does at predicting the variability in popularity ratings. 
+
+```{r}
+summary(lm(pop~dB*nrgy,data=S_top)) # Analyzing interaction effects
+```
+
+
+After running the regression for the interaction effect I have found that the interaction effect of the two variables is statistically significant in predicting the variability in the popularity rating. The coefficient for the interaction effect is negative so this means that as the energy level increases, the interaction between the energy and decible level will make the predicted popularity level even lower. Along with this as the decible level increases, even though it is positive and is predicted to have a positive effect on the popularity rating, the interaction between the decible and energy level will make the popularity level increase at a lower level. 
+
+```{r}
+#Checking if there is a different shape of the line for the energy rating vs popularity regression that is more significant
+
+lm.fit2=lm(pop~nrgy+I(nrgy^2), data=S_top)
+lm.fit=lm(pop~nrgy,data=S_top)
+anova(lm.fit,lm.fit2) # Comparing two linear models.
+```
+
+
+```{r}
+#Check to see which linear model is the most significant from 1-5 
+
+lm.fit5=lm(pop~poly(pop,5), data=S_top) # poly(lstat,5): Creates a fifth order polynomial
+```
+
+
+```{r}
+summary(lm.fit5)
+```
+
+From the output we see that the the difference in the two linear models was found because the straight line linear model was much more statistically significant than any of the other shapes of linear models. This means that as we did in the original model we will look to keep this variable to the first variable in order to find the most statistical significance. 
+
+
+Next I will be running linear regressions on the popularity ratings of the songs versus all of the other varaibles we used before but now specifically for the 2010 and 2018 datasets. As I saw in my 5 minute analytic challenge taste in music can change very fast so comparing these two models can show if there are any differences in what variables were statistically significant in predicting popularity between the two different years. 
+
+```{r}
+# subset the data
+Popularity2010 <- subset(S_top, year == "2010")
+Popularity2018 <- subset(S_top, year == "2018")
+```
+
+
+```{r}
+# estimate simple regression models using 2010 and 2018 data
+
+pop2010_mod <- lm(pop~dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch,data=Popularity2010)
+summary(pop2010_mod)
+
+pop2018_mod <- lm(pop~dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch,data=Popularity2018)
+summary(pop2018_mod)
+```
+
+
+From the two new models there are two variables that stand out. For the data for 2010 valence was the only variable that was found to be statistically significant and this is only at a significance level of .10.This could provide some insight that music listeners in 2010 enjoyed music that sounded happier but it would be very difficult to use this insight in practice because the R squared of the model overall is very low and the p value is not below .05. Along with this for the data in 2018 you can see that decible level was found to be statistically significant at a significance level of .10. With the positive coefficient this shows that as decible level increases the popularity rating of the song is predicted to increase. Again for the same reasons as before this insight should not be counted on because of the low R squared value of the model and the p value that is below .05. 
+
+
+Next I will plot both of these variables with their lines of best fit for visualization purposes. 
+
+```{r}
+# plot the observations and add the estimated regression line for 1982 data
+plot(x = Popularity2010$val, 
+     y = Popularity2010$pop, 
+     xlab = "Valence",
+     ylab = "Popularity",
+     main = "Valence ratings and popularity of songs in 2010",
+     ylim = c(0, 100),
+     pch = 20, 
+     col = "lightblue")
+
+abline(pop2010_mod, lwd = 1.5)
+```
+
+
+```{r}
+# plot the observations and add the estimated regression line for 1982 data
+plot(x = Popularity2018$dB, 
+     y = Popularity2018$pop, 
+     xlab = "decibible rating of the song",
+     ylab = "Popularity",
+     main = "decible ratings and popularity of songs in 2018",
+     ylim = c(0, 100),
+     pch = 20, 
+     col = "red")
+
+abline(pop2018_mod, lwd = 1.5)
+```
+
+
+#### Insights 
+
+From the linear regression models I have created you can see that decible level, year, and energy rating for the songs were found to be statistically significant in predicting the popularity rating for the songs from this time frame. Year and decible level had positive coefficients so as these variables increased it is predicted that popularity rating would increase and inversely energy rating had a negative value so as the energy of the songs increased the popularity rating was predicted to decrease. The interaction effect of the energy rating and decible level was also found to be statistically significant with a negative coefficient so if both of the variables increased together then the interaction of the two would lower the sum of the effect of the two variables on popularity. Then finally we found that valence was statistically significant in predicting the variability of the popularity of songs in 2010 at a significance level of .10 and decible level was statistically significant in predicting the variability in the popularity ratings of the songs in 2018. 
+
+---
+
+### Predictive Modeling with Logistic Regression for popularity 
+
+
+Next I will attempt to use logistic regression to try and predict if a song will be more popular than the average song that makes it on the spotify end of year top song list. 
+
+First I need to create a variable which has either a 0 or 1 value for if a song is more popular or less popular than a song on the list. 
+
+```{r}
+#Creating a Boolean value for whether a song is above average popularity 
+
+S_top$pop_1 <- ifelse(S_top$pop>mean(S_top$pop),1,0)
+S_top$pop_1 <- factor(S_top$pop_1)
+
+#Creating a Boolean value for whether a song is a dance pop song for later
+S_top$genre <- ifelse(S_top$top.genre == "dance pop",1,0)
+S_top$genre <- factor(S_top$genre)
+```
+
+
+```{r}
+#Partitioning the data in to a training and test data set with the training data being larger than the test data because of the smaller size of the data set
+
+set.seed(111)
+train.index <- sample(c(1:dim(S_top)[1]), dim(S_top)[1]*0.6)  
+train.df <- S_top[train.index, ]
+valid.df <- S_top[-train.index, ]
+```
+
+
+```{r}
+# using glm() (general linear model) with family = "binomial" to fit a logistic regression.
+logit.reg <- glm(pop_1 ~ dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch + genre, data = train.df, family = "binomial") 
+options(scipen=999) # Disabling scientific notation
+summary(logit.reg)
+
+# using predict() with type = "response" to compute predicted probabilities. 
+logit.reg.pred <- predict(logit.reg, valid.df[, -17], type = "response")
+```
+
+
+After running the logistic regression I have found four variables to be statistically significant in the logistic regression model. I can conclude that changes in the genre being dance pop or not, year song was released, decible level, and dance rating of the song are all associated with the changes in the probability that a song is above average popularity for this list of songs. 
+
+Now I will test the predictions that I have derived from this logistic regression model against cutoff values of 0.5, 0.7, and 0.3. 
+
+```{r}
+library(caret)
+
+# Cutoff = 0.5
+confusionMatrix(as.factor(ifelse(logit.reg.pred > 0.5, 1, 0)), as.factor(valid.df[,17]))
+
+# Cutoff = 0.7
+confusionMatrix(as.factor(ifelse(logit.reg.pred > 0.7, 1, 0)), as.factor(valid.df[,17]))
+
+# Cutoff = 0.3
+confusionMatrix(as.factor(ifelse(logit.reg.pred > 0.3, 1, 0)), as.factor(valid.df[,17]))
+```
+
+
+The cutoff value of 0.5 had the highest accuracy but none of the accuracies were acceptionally high. The cutoff value of 0.5 was the only one gave an accuracy that was above the no information rate and the p value of determining if the accuracy is greater than the no information rate is 0.7 which is close to the standard significance level of 0.5. 
+
+
+Next I will analyze the ROC curve to analyze the model plus see the area under it and find which cutoff value has the highest sensitivity and specificity to try and get the best model possible. 
+
+```{r}
+#Plotting the ROC curve
+
+library(pROC)
+r <- roc(valid.df$pop_1, logit.reg.pred)
+plot.roc(r)
+auc(r)
+
+#Deriving the threshold with the highest sensitivity and specificity 
+
+Total <- r$sensitivities + r$specificities
+Best_Threshold_Index <- which(Total == max(r$sensitivities + r$specificities))
+Best_Cutoff <- r$thresholds[Best_Threshold_Index]
+Best_Cutoff
+```
+
+
+```{r}
+# Cutoff = Best Cutoff Possible using ROC curve value 
+
+confusionMatrix(as.factor(ifelse(logit.reg.pred > 0.5381208, 1, 0)), as.factor(valid.df[,17]))
+```
+
+
+Using the ROC curve I was able to derive the highest accuracy that I have seen at an accuracy rating of 0.6488. The sensitivity and specificity rose to 0.5833 and 0.6918 respectively. Even with this higher accuracy I still acknowledge that the accuracy is not far off from the no information rate and with more data plus more variables that help predict popularity, this model has room for improvement. 
+
+
+I now will create a decile wise lift chart to see if different group of songs are more likely to be rated as more popular than the average song in this list. 
+
+```{r}
+library(gains)
+# Arguments: gain(Actual_value, Predicted_Value)
+mean(valid.df$pop_1)  
+gain <- gains(as.numeric(valid.df$pop_1), logit.reg.pred)
+gain
+```
+
+
+We can see from this table already that there is a very consisitent pattern so no group of deciles seems to stand out from the rest. 
+
+Now I will plot this information visually. 
+
+```{r}
+# Compute deciles and plot decile-wise chart
+heights <- gain$mean.resp/mean(as.numeric(valid.df$pop_1))
+midpoints <- barplot(heights, names.arg = gain$depth, ylim = c(0,2), 
+                     xlab = "Percentile", ylab = "Mean Response", main = "Decile-wise lift chart")
+# add labels to columns
+text(midpoints, heights+0.5, labels=round(heights, 1), cex = 0.8)
+```
+
+
+Songs in The first decile are 1.2 times more likely than the average song to be rated as very popular. This is not a very high value and the decile wise lift chart is very stable without any patterns so there aren't many conclusions you can derive from this chart. 
+
+
+Now I will use different methods to see if I can create any improvements in my machine learning model for predicting if a song will be above the average popularity of the Spotify top songs for the end of the year. The first alternate method that I will try is the decision tree method of machine learning. Hopefully by creating decision trees to determine if a song will be very popular or not, I can improve the accuracy of my model. 
+
+
+```{r}
+#First I need to train the model with the train function and the training data 
+
+library(caret)
+dt_model <- train(pop_1~dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch, data = train.df, method = 'rpart')
+```
+
+
+```{r}
+#Next I will create predictions for the validation data based off of the decision tree model with the predict function 
+
+pred_rw_dt <- predict(dt_model, valid.df, type = "raw")
+```
+
+
+```{r}
+#Then I will create a confusion matrix to  see the results of my model compared to the actual data 
+
+confusionMatrix(pred_rw_dt, as.factor(valid.df$pop_1), positive = "1")
+```
+
+After using the decision tree model I have found results I would definitley not wish to use in practice. I have obtained an accuracy of a little over 60% but the specificity of this model is 0 flat because with all the test data that I have it predicted every song to be above average popularity for this dataset. As a result of doing this it also achieved a 100% sensitivity rate but these are not results I would use in practice since it is going to predict a large amount of songs to be very popular when they are not which could be a lare cost for a company. 
+
+
+After a lackluster result from the decision tree model I will attempt to make another new model using the treebag method. This method will use subsets of the training data to construct an aggregated and hopefully more accurate model. 
+
+```{r}
+#First I will train the treebag model with the train function 
+
+treebag_model <- train(pop_1~dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch, data = train.df, method = 'treebag')
+```
+
+
+```{r}
+#Then I will gather the predictions from the treebag model with the predict function 
+
+pred_tb_dt <- predict(treebag_model, valid.df, type = "raw")
+```
+
+
+```{r}
+#Now I will create a confusion matrix to see the output of using the treebag model
+
+confusionMatrix(pred_tb_dt, as.factor(valid.df$pop_1), positive = "1")
+```
+
+
+After creating the treebag model we see that the accuracy has gone down from the decision tree model but this time the predictions are more distributed between 1 and 0. The accuracy unfortunately is below the no information rate which results in a high p-value for this model. The results are better than the decision tree model but nothing so far has beat the logistic regression model with the optimal cutoff value.
+
+
+The next method we will use to create predictions for whether a song is above the average popularity rating or not is the xgbtree method. This is one of the most powerful algorithms we have today and it will actually make subsets of data in parallel to evaluate then continuosly evaluate the subset until it removes as much error as possible while preventing over fitting. 
+
+```{r}
+#First I need to train the training data with the xgbtree method 
+
+library(xgboost)
+
+xgbtree_model <- train(pop_1~dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch, data = train.df, method = 'xgbTree')
+```
+
+
+```{r}
+#Then create predictions with the predict function 
+
+pred_xgb_dt <- predict(xgbtree_model, valid.df, type = "raw")
+```
+
+
+```{r}
+#Create a confusion matrix in order to visualize my results 
+
+confusionMatrix(pred_xgb_dt, as.factor(valid.df$pop_1), positive = "1")
+```
+
+
+After using the xgbtree method I have still found a model that has a lower accuracy than the logistic regression model I made with the optimal cutoff. The accuracy of this model is 59.67% and is below the no information rate. This does not necessarily have to due with a shortcoming of the methods but can speak to how difficult it is to predict the popularity of songs. Each song has so many variables that can make them popular such as artist, time of release, what celebrity scandal that artist may have been in, and what tour dates the artist could have which we did not capture in this datatset along with the fact that the data set has about 600 rows which for something that is this hard to predict, you would want as much data as possible. What we have learned from this is that it is not only the characteristics of the music that determine whether a song is popular or not. 
+
+
+---
+
+
+### Using Machine Learning to attempt to predict the genre of a song 
+
+
+```{r}
+#First put the top songs in descending order by the genre of the songs
+s_top_descending_genre <- sort(table(S_top$top.genre), decreasing=TRUE)
+
+#Take the top 10 from the top songs in descending order by genre 
+s_top_genre.df <- as.data.frame(s_top_descending_genre[1:10])
+
+#Create the pie chart with percentages and proper labels
+lbls <- s_top_genre.df$Var1
+pct <- round(s_top_genre.df$Freq/603, digits = 2)*100 
+lbls <- paste(lbls, pct) # add percents to labels
+lbls <- paste(lbls,"%",sep="") # ad % to labels
+pie(s_top_genre.df$Freq, labels = lbls, col=rainbow(length(lbls)),
+   main="Pie Chart of Top Genres\n (with percentages)")
+```
+
+
+For my 5 minute analytic challenge I created a pie chart which shows the top 10 genres of all the songs on the spotify top songs list with the proportion of songs in the list that were that genre included as a percentage. From this I found that the most popular songs were dominated by dance pop songs so now I wish to create a machine learning algorithm which can predict any song that is on spotify to be of the genre dance pop. This will allow for songs that have unique genres to be possibly recommended to people who enjoy the genre dance pop. There is a large population of people that enjoy this genre based on the fact that the majority of top songs are dance pop songs so being able to recommend dance pop fans to more songs that sound like dance pop songs would be beneficial to Spotify and other streaming services. 
+
+
+```{r}
+#First thing I did was partition the data in to training and test data 
+
+set.seed(111)
+train.index <- sample(c(1:dim(S_top)[1]), dim(S_top)[1]*0.6)  
+train.df <- S_top[train.index, ]
+valid.df <- S_top[-train.index, ]
+```
+
+
+```{r}
+# use glm() (general linear model) with family = "binomial" to fit a logistic regression.
+
+logit.reg <- glm(genre ~ dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch + pop, data = train.df, family = "binomial") 
+options(scipen=999) # Disable scientific notation
+summary(logit.reg)
+
+# use predict() with type = "response" to compute predicted probabilities. 
+
+logit.reg.pred <- predict(logit.reg, valid.df[, -18], type = "response")
+```
+
+
+From the logistic regression output you can see that the variables decible level, acoustic rating, and popularity have all been found to be statistically significant in predicting whether a song is of the dance pop genre or not. Acoustic rating has a negative coefficient so the more acoustic sound that a song has in it the less likely that it is a dance pop song so from the model we can see that dance pop songs do not use as many accoustic instruments. Decible level has a positive coefficient so the louder a song is the more likely that it is going to be predicted to be a dance pop song. Then finally the popularity rating has a negative coefficient so the higher the popularity rating for a song is the less likely it is to be predicted as a dance pop song. Now I will explore different cutoff levels with this model to see how it does in predicting if a song is dance pop or not. 
+
+
+```{r}
+#Creating confusion matrices to test different cutoffs with the logistic regression model 
+
+
+library(caret)
+# Cutoff = 0.5
+confusionMatrix(as.factor(ifelse(logit.reg.pred > 0.5, 1, 0)), as.factor(valid.df[,18]))
+
+# Cutoff = 0.7
+confusionMatrix(as.factor(ifelse(logit.reg.pred > 0.7, 1, 0)), as.factor(valid.df[,18]))
+
+# Cutoff = 0.3
+confusionMatrix(as.factor(ifelse(logit.reg.pred > 0.3, 1, 0)), as.factor(valid.df[,18]))
+```
+
+
+After creating the three different models we can see that the cutoff value of 0.5 had the highest accuracy of the three models. All three models had an accuracy that was higher than the no information rate. The p value of the model with the cutoff value of 0.5 was 0.1 which shows that there was a statistically significant difference between the accuracy of the model and the information rate. So the first model is only accurate 61.88% of the time with our test data but is statistically significantly better at predicting whether a song is of the dance pop genre than someone trying to predict that value without the model. 
+
+
+Next I will create an ROC curve to see the area under it and find the best cutoff value. 
+
+```{r}
+#Plotting the ROC curve
+library(pROC)
+r <- roc(valid.df$genre, logit.reg.pred)
+plot.roc(r)
+auc(r)
+
+
+#Finding the best cutoff value possible for the model 
+Total <- r$sensitivities + r$specificities
+Best_Threshold_Index <- which(Total == max(r$sensitivities + r$specificities))
+Best_Cutoff <- r$thresholds[Best_Threshold_Index]
+Best_Cutoff
+```
+
+
+```{r}
+#Best cutoff 
+
+confusionMatrix(as.factor(ifelse(logit.reg.pred > 0.6598849, 1, 0)), as.factor(valid.df[,18]))
+
+```
+
+
+After creating the model with the best cutoff possible for maximizing sensitivity and specificity, we see that the accuracy is lower than the cutoff value of 0.5 which we originally tested but the sensitivity has improved greatly from that previous model. This means that a lot more of the songs that are not dance pop songs are being caught as not being dance pop songs. Along with this though the specificity for this new model is lower so that means more songs that are actually dance pop songs are being classified as not dance pop songs. So which of these two models to use would be based off of a managerial decision on which misclassifications would hurt the business more. 
+
+
+Next we will use the other methods which we used previously with the popularity ranking predictive models. Again we will start with the decision tree model and observe its performance. 
+
+```{r}
+#First need to train the training data with the decision tree method 
+
+dt_model <- train(genre~dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch + pop, data = train.df, method = 'rpart')
+```
+
+
+```{r}
+#Take the predictions for the decision tree method 
+
+pred_rw_dt <- predict(dt_model, valid.df, type = "raw")
+```
+
+
+```{r}
+#Create a confusion matrix to observe the results of the model 
+
+confusionMatrix(pred_rw_dt, as.factor(valid.df$genre), positive = "1")
+```
+
+
+Using the decision tree method we have found results that are better than the no information rate when looking at accuracy so this shows that the decision tree method worked better for predicting the genre variable than it did previously with predicting the high popularity variable. The accuracy for this model ended up being 58.68% with a high sensitivity and lower specificity. 
+
+Now we will look to use the treebag method which we also used previously and see how this method does in predicting the genre of a song. 
+
+```{r}
+#Training the training data with the treebag method 
+
+tb_model <- train(genre~dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch + pop, data = train.df, method = 'treebag')
+```
+
+
+```{r}
+#Creating the predictions from the treebag model that was trained 
+
+pred_tb_dt <- predict(tb_model, valid.df, type = "raw")
+```
+
+
+```{r}
+#Creating a confusion matrix to see the results of the treebag method
+
+confusionMatrix(pred_tb_dt, as.factor(valid.df$genre), positive = "1")
+```
+
+
+The treebag method does render some interesting results. The first thing that I noticed was that the accuracy was almost as high as the model I created previously with the cutoff value of 0.5. The p value for this model is .01 which is statistically significant so the accuracy of this model has a statisticaly significant difference from the no information rate. This method also had the most balance sensitivity and specificity rating. Both sensitivity and specificity were close to each other unlike other models where one was much higher than the other. 
+
+Finally I will try using the xgbtree method that I used previously on the popularity model. 
+
+```{r}
+#Training the training data with the xgbtree method
+
+xgb_model <- train(genre~dnce + dB + year + bpm+ nrgy + live + val + dur + acous + spch + pop, data = train.df, method = 'xgbTree')
+```
+
+
+```{r}
+#Extracting the predictions from the xgbTree method 
+
+pred_xgb_dt <- predict(xgb_model, valid.df, type = "raw")
+```
+
+
+```{r}
+#Using confusion matrix to see the results of the model
+
+confusionMatrix(pred_xgb_dt, as.factor(valid.df$genre), positive = "1")
+```
+
+
+the xgbtree method ended up rendering a lower accuracy than the treebag method that I used previously. The accuracy is higher than the no information rate but the p value shows that there is not a statistically significant difference between the no information rate and the accuracy of this model. Out of the three alternate methods that I used to create a machine learning model to predict if a song was a dance pop song or not, the treebag model showd the highest accuracy. Still the method which showed the highest accuracy for predicting if a song is dance pop or not was the logistic regression model with a cut off value of 0.5. 
+
+
+---
+
+### Cluster Analysis for Groups of Similar Songs 
+
+The next analysis I wish to run is a cluster analysis. I wish to see which songs can be grouped together with unsupervised machine learning. From these results we can get insights in to which song shave similar characteristics and suggestions we can make to listeners of certain songs. If a streaming service possibly wants to suggest similar songs to a listener in order to keep them as a repeat customer, a cluster analysis could be a great way of doing this. 
+
+
+The first method I used to create these clusters was the hierarchical method of clustering. 
+
+```{r}
+#Load the original data in to a new dataframe in order to not change any of the original data without being able to recover it easily 
+df <- S_top
+
+#Remove all of the non-numeric variables so the program can conduct unsupervised learning with just the numbers from the variables that are characteristics of the music
+df$top.genre <- NULL
+df$artist <- NULL
+df$top.genre <- NULL
+df$title <- NULL
+df$Billboard.EY.Rank <- NULL
+df$pop_1 <- NULL 
+df$genre <- NULL
+```
+
+
+```{r}
+#Scale the data to begin with 
+centered.s <- scale(df)
+```
+
+
+```{r}
+#Compute the distances between the data with the distance function 
+d <- dist(centered.s)
+
+#Get a preview of the distances of the different data 
+as.matrix(d)[1:4,1:4]
+```
+
+
+```{r}
+#Use the average distance method to fit a hierarchial cluster model 
+fit.average <- hclust(d, method="average") 
+```
+
+
+```{r}
+library(NbClust)
+
+#Use NbClust to figure out the optimal number of clusters for the model 
+nc <- NbClust(centered.s, distance="euclidean", 
+              min.nc=2, max.nc=10, method="average")
+```
+
+
+```{r}
+#Plot how many criteria suggest each number of clusters from 0 to 10
+
+table(nc$Best.n[1,])
+barplot(table(nc$Best.n[1,]), 
+        xlab="Numer of Clusters", ylab="Number of Criteria",
+        main="Number of Clusters vs Number of Criteria") 
+```
+
+
+```{r}
+#Use a table to see how many songs go into each cluster with the different suggested number of clusters 
+
+table(cutree(fit.average, k=2))
+table(cutree(fit.average, k=6))
+table(cutree(fit.average, k=7))
+```
+
+
+Even though the suggested number of clusters is two we can see from this table that two clusters wouldn't tell us much since almost every song is in the first cluster. For this reason we are going to use the second most recomended amount of clusters which is 7. This will give us more groups of songs and more songs in each group so we can make better recomendations. 
+
+
+```{r}
+# cutree() function is used to cut the tree into specified number of clusters (7 in this case).
+clusters <- cutree(fit.average, k=7) 
+
+# Calculate median of each variable in clusters (in scaled data)
+aggregate(as.data.frame(centered.s), by=list(cluster=clusters), median) 
+```
+
+
+The two clusters I am most focused on is cluster one and cluster number two since they both have the most songs in them and would be most used for recommendations since they have multiple songs in each. From the median values you can see that cluster one contains more songs with fast temp from the bpm, more energy in them, more danceable songs, louder songs, and more. On the other hand cluster two is showing a reverse picture so this cluster must contain songs which are more mellow and relaxed. This means that if people were listening to slower songs they could be recommended songs from cluster two and if they were listening to faster songs they could be recommended songs from cluster one. 
+
+Now I will look to use the kmeans method in order to cluster the same data. 
+
+```{r}
+#Code to cluster the data with kmeans 
+
+library(NbClust)
+set.seed(1234)
+nc <- NbClust(centered.s, min.nc=2, max.nc=15, method="kmeans") # Note: method="kmeans"
+table(nc$Best.n[1,])
+barplot(table(nc$Best.n[1,]), 
+        xlab="Numer of Clusters", ylab="Number of Criteria",
+        main="Number of Clusters Chosen by 26 Criteria") 
+```
+
+
+Based on the majority rule I will be choosing three clusters to cluster the song data. 
+
+
+```{r}
+#Get attributes on the average ratings of each variable for each cluster 
+
+set.seed(1234)
+fit.km <- kmeans(centered.s, 3, nstart=25) 
+fit.km$size
+fit.km$centers                                               
+aggregate(scale(df), by=list(cluster=fit.km$cluster), mean)
+```
+
+
+Looking at the three clusters and their averages it seems like the first cluster has older music that is more upbeat and faster. Then the second cluster has faster music that is lower energy, not as danceable, and not as loud. Then finally the last cluster contains slower more relaxed music similar to what we saw in the second cluster in the hierarchal clustering method. 
+
+
+Next I will show an example of how this clustering will work.
+
+```{r}
+#First get which cluster each song is a part of 
+
+fit.km$cluster
+```
+
+
+```{r}
+#Deriving the first seven songs from the original data set
+
+S_top[0:7,]
+```
+
+Using the k means clustering method we can now find a consumer who has shown interest in the songs "Hey, Soul Sister", "Love The Way You Lie", and "Tik Tok" then suggest them songs like "Bad Romance", "Just the Way You Are", and "Baby" which are also all upbeat songs with a fast temp that the consumer may enjoy as well. 
+
+
+---
+
+### Conclusions
+
+From the original multilinear regression model we learned that the variables for year, decible level, and energy were all statistically significant in predicting the variability of the popularity rating. Then we learned that the interaction of the energy and decible level have was statistically significant in predicting the variability in popularity rating. We saw the variable valence was statistically significant in predicting variability in popularity for songs in 2010 but wasn't in 2018 while the decibel level was. Then we went on to conduct logistic regression models which I would use to try and predict whether a song had an above average popularity rating compared to the other spotify top songs. Dance, decibel level, year, and genre were all found to be statistically significant in helping predict the probability of whether a variable was above average popularity or not. Then I used a multitude of methods to try and predict if a song was above average popularity or not and the highest accuracy rating I was able to find was 64.88% which was the accuracy for the logistic regression model that used the cutoff value which had the highest sensitivity and specificity. I went on to try and predict whether the genre of a song was dance pop using different methods of machine learning as well. The highest accuracy I found in this analysis was at 62% for my logistic regression model with a cutoff value of 0.5. The final analysis I ran was an unsupervised cluster analysis. I ran both a hierarchical cluster analysis and a kmeans cluster analysis. With these clusters I found clusters of songs which were high energy and clusters that were low energy. With these clusters, I found songs that could be suggested to listeners if certain other songs in the clusters were listened to. I have found variables that can aid in predicting variability in the popularity of music which could give music labels and other people in the music industry insight on what to look for when buying music to promote and which artist to possibly promote. I found clusters which have found groups of songs that are similar and provided lists of songs that are similar to ease the process of recommendations. From the models predictions and looking at the ROC curves in the future I would like to have even more data on spotify top songs and popular songs in general to make the recommendations I wish to make even more accurate using larger training and testing data sets. Along with this I would like to use more variables that are not only related to the songs themselves but also possibly related to the artist that produce those songs or what else is popular in the music industry at the time the songs are released. Thank you for taking the time to listen to my 10 minute analytic challenge! 
+
+
+
